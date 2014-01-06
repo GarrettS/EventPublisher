@@ -1,0 +1,302 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=iso-8859-1">
+    <title>DOM Event Test</title>
+
+    <link rel="stylesheet" type="text/css" href="../yui-test/build/logger/assets/logger.css">
+    <link rel="stylesheet" type="text/css" href="../yui-test/build/yuitest/assets/yuitest.css">
+    <link rel="stylesheet" type="text/css" href="../yui-test/assets/testlogger.css">
+
+    <script type="text/javascript" src="../yui-test/build/yahoo-dom-event/yahoo-dom-event.js"></script>
+    <script type="text/javascript" src="../yui-test/build/logger/logger.js"></script>
+    <script type="text/javascript" src="../yui-test/build/yuitest/yuitest-beta.js"></script>
+
+    <script type="text/javascript" src="../yui-test/build/dom/Event.js"></script>
+
+    <script type="text/javascript" src="../DomEventPublisher.js"></script>
+
+</head>
+<body style="position:relative;top: 10px">
+<div id="template">
+    <div id="testNode"><input id="testInp"><input id="testInp2"></div>
+    <iframe style="position: absolute;" id="iframe-load-test"></iframe>
+</div>
+<div id="testLogger"></div>
+
+<script type="text/javascript">
+setTimeout(function(){
+
+var Event = DomEventPublisher,
+    Assert = YAHOO.util.Assert,
+    Action = YAHOO.util.UserAction,
+    testNode,
+    testInp,
+    template = document.getElementById("template"),
+    templateHTML = template.innerHTML,
+    isEventModelFucked = !document.addEventListener;
+
+var eventTestCase = new YAHOO.tool.TestCase({
+    name : "Event Test Case",
+
+    setUp : function() {
+        testNode = document.getElementById("testNode");
+        testInp = document.getElementById("testInp");
+    },
+
+    _should : {
+        ignore : {
+            testGetRelatedTargetMouseout : isEventModelFucked,
+            testGetRelatedTargetMouseover : isEventModelFucked
+        }    
+    },
+    
+    tearDown : function() {
+        template.innerHTML = templateHTML;
+        testNode = testInp = null;
+    },
+    
+    testGetTarget : function() {
+        var target;
+        if(testNode.addEventListener) {
+            testNode.addEventListener("mouseover", gotTarget, false);
+        } else {
+            testNode.attachEvent("onmouseover", gotTarget);
+        }
+        Action.mouseover(testNode);
+        function gotTarget(e) {
+            target = DomEventPublisher.getTarget(e);
+        }
+        this.wait(function() {
+            Assert.areEqual(testNode, target);
+        }, 10);
+    },
+
+    testGetRelatedTargetMouseover : function() {
+        var rt;
+        testNode.onmouseover = gotTarget;
+        Action.mouseover(testNode.parentNode);
+        Action.mouseout(testNode.parentNode);
+        Action.mouseover(testNode, {relatedTarget : testNode.parentNode});
+        
+        function gotTarget(e){
+            rt = DomEventPublisher.getRelatedTarget(e);
+        }
+        
+        this.wait(function() {
+            Assert.areEqual(testNode.parentNode, rt);
+        }, 10);
+    },
+    
+    testGetRelatedTargetMouseout : function() {
+        var rt;
+        testNode.onmouseout = gotTarget;
+        Action.mouseout(testNode, {relatedTarget : testNode.parentNode});
+        
+        function gotTarget(e){
+            rt = DomEventPublisher.getRelatedTarget(e);
+        }
+        
+        this.wait(function() {
+            Assert.areEqual(testNode.parentNode, rt);
+        }, 10);
+    },
+    
+    testEventPayload : function() {
+        // IE doesn't pass event to callbacks, so this mainly verifies 
+        // that the API takes care of that.
+        var isClick;
+
+        function cb(ev) {
+            isClick = ev.type === "click";
+        }
+
+        DomEventPublisher.addCallback(document.body, "click", cb);
+        Action.click(document.body);
+        Assert.isTrue(isClick);
+    },
+    
+    testAddCallback : function() {
+        var context;
+        DomEventPublisher.addCallback(document.body, "click", bodyClicked);
+        Action.click(document.body);
+
+        this.wait(function() {
+            Assert.areSame(document.body, context, "context was wrong");
+        }, 50);
+
+        function bodyClicked() {
+            context = this;
+        }
+    },
+
+    testRemoveCallback : function() {
+        var called = false;
+        DomEventPublisher.addCallback(document.body, "click", bodyClicked);
+        DomEventPublisher.removeCallback(document.body, "click", bodyClicked);
+        
+        Action.click(document.body);
+        
+        this.wait(function() {
+            Assert.isFalse(called, "removed function should not have been called.");
+        }, 50);
+        
+        function bodyClicked() {
+            called = true;
+        }
+    },
+
+    testAddIframeLoadHandler : function() {
+        var isIframe = false,
+            isLoaded,
+            iframe = document.getElementById("iframe-load-test");
+        
+        DomEventPublisher.addCallback(iframe, "load", iframeLoadHandler);
+        
+        iframe.src = "./iframe-load-test.html";
+        
+        function condition() {
+            return isLoaded;
+        }
+        function iframeLoadHandler() {
+            isLoaded = true;
+            isIframe = this === iframe;
+        }
+        this.waitForCondition(condition, function() {
+            Assert.isTrue(isIframe);
+        });
+    },
+    
+    testAddDelegatedFocus : function(){
+        var called = false,
+            testNode = document.getElementById("testNode");
+
+        DomEventPublisher.addCallback(testNode, "focus", tnFocused);
+        Action.focus(document.getElementById("testInp"));
+        Assert.isTrue(called, "focus handler was not called.");
+        function tnFocused() {
+            called = true;
+        }
+    },
+
+    testRemoveDelegatedFocus : function(){
+        var called = false;
+        DomEventPublisher.addCallback(testNode, "focus", tnFocused);
+
+        DomEventPublisher.removeCallback(testNode, "focus", tnFocused);
+        Action.focus(testInp);
+        this.wait(function(){
+            Assert.isFalse(called, 
+                 "focus handler was called, but should not have been");
+        }, 100);
+        function tnFocused() {
+            called = true;
+        }
+    },
+
+    testAddDelegatedBlur : function(){
+        var called = false;
+
+        DomEventPublisher.addCallback(testNode, "blur", tnBlurHandler);
+
+        Action.focus(testInp);
+        testInp.focus();
+
+        // Opera needs this.
+        Action.blur(testInp);
+
+        // IE needs this.
+        testInp.blur();
+        
+        Action.focus(document.getElementById("testInp2"));
+        Assert.isTrue(called, "blur handler was not called.");
+        function tnBlurHandler() {
+            called = true;
+        }
+    },
+
+    testRemoveDelegatedBlur : function(){
+        var called = false;
+
+        DomEventPublisher.addCallback(testNode, "blur",tnBlurHandler);
+
+        DomEventPublisher.removeCallback(testNode, "blur",tnBlurHandler);
+        Action.focus(testInp);
+        Action.blur(testInp);
+        this.wait(function(){
+            Assert.isFalse(called, 
+                 "blur handler was called, but should not have been.");
+        }, 100);
+        function tnBlurHandler() {
+            called = true;
+        }
+    },
+
+    testStopPropagation : function(){
+        var called = false;
+
+        Event.addCallback(testNode, "click", tnClick);
+        Event.addCallback(testInp, "click", inpClick);
+        function tnClick() { called = true;  }
+        function inpClick(ev){ Event.stopPropagation(ev); }
+        
+        Action.click(testInp);
+        this.wait(function(){
+            Assert.isFalse(called, 
+                 "click handler bubbled up to testInp, but should not have.");
+        }, 100);
+    },
+
+    testAddMultiple : function() {
+        var pub = Event.get(testNode, "click"),
+            called1, called2;
+        
+        pub.addCallback(tnClick);
+        pub.addCallback(tnClick2);
+        function tnClick() { called1 = true;  }
+        function tnClick2(ev){ called2 = true;  }
+        Action.click(testNode);
+        Assert.isTrue(called1, "first was not called");
+        Assert.isTrue(called2, "second was not called");
+    },
+
+    testPurge : function() {
+        var pub = Event.get(testNode, "click"),
+            calls = 0;
+        
+        Event.addCallback(testNode, "click", tnClick);
+        Event.addCallback(testNode, "click", tnClick2);
+        Event.addCallback(testNode, "mousedown", tnClick3);
+        Event.addCallback(testNode, "mouseup", tnClick4);
+        
+        function tnClick() { calls++;  }
+        function tnClick2(ev){ calls++;  }
+        function tnClick3(ev){ calls++;  }
+        function tnClick4(ev){ calls++;  }
+
+        Event.purgeEvents(testNode, ["click", "mousedown", "mouseup"]);
+        
+        Action.mousedown(testNode);
+        Action.mouseup(testNode);
+        Action.click(testNode);
+        
+        Assert.areSame(0, calls, "calls was not 0");
+    },
+    
+    testGetDomEventPublisher : function(){
+        var dep = Event.get(testNode, "click");
+    }
+});
+
+var logger = new YAHOO.tool.TestLogger("testLogger");
+YAHOO.tool.TestRunner.add( eventTestCase );
+
+// run the tests, or put them in the TestRunner.
+if (parent && parent != window) {
+    YAHOO.tool.TestManager.load();
+} else {
+    YAHOO.tool.TestRunner.run();
+}
+}, 100);</script>
+</body>
+</html>
