@@ -7,7 +7,8 @@ var HAS_EVENT_TARGET = "addEventListener" in this,
             removeCallback : removeCallback,
 
             get : get,
-
+            getTarget : getTarget,
+            getRelatedTarget : getRelatedTarget,
             purgeEvents : purgeEvents,
             preventDefault : preventDefault,
             stopPropagation : stopPropagation,
