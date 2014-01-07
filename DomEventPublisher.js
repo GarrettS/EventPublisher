@@ -7,8 +7,6 @@ var HAS_EVENT_TARGET = "addEventListener" in this,
             removeCallback : removeCallback,
 
             get : get,
-            getTarget : getTarget,
-            getRelatedTarget : getRelatedTarget,
 
             purgeEvents : purgeEvents,
             preventDefault : preventDefault,
@@ -71,7 +69,7 @@ var HAS_EVENT_TARGET = "addEventListener" in this,
                     if (o === window)
                         return cb;
                     function bound(ev) {
-                        bound.original.call(bound.context, ev || window.event);
+                        bound.original.call(bound.context, getAdaptedEvent(ev || window.event));
                     }
                     bound.original = cb;
                     bound.context = o;
@@ -162,8 +160,34 @@ var HAS_EVENT_TARGET = "addEventListener" in this,
         return get(src, sEvent);
     }
 
+    function getAdaptedEvent(ev) {
+        return {
+            target : getTarget(ev),
+            relatedTarget : getRelatedTarget(ev),
+            type : ev.type,
+            toString : eventToString,
+            
+            screenX : ev.screenX,
+            screenY : ev.screenY,
+            clientX : ev.clientX,
+            clientY : ev.clientY,
+            offsetX : ev.offsetX,
+            offsetY : ev.offsetY,
+            altKey : ev.altKey,
+            ctrlKey : ev.ctrlKey,
+            data : ev.data,
+            origin : ev.origin,
+            keyCode : ev.keyCode,
+            wheelDelta : ev.wheelDelta
+        };
+    }
+    
+    function eventToString() {
+        return"[adapted event]";
+    }
+    
     function getTarget(ev) {
-        return (Event.getTarget = HAS_EVENT_TARGET ? function(ev) {
+        return (getTarget = HAS_EVENT_TARGET ? function(ev) {
             return ev && getEventElementProperty(ev, TARGET);
         } : function(ev) {
             ev = window.event;
@@ -179,7 +203,7 @@ var HAS_EVENT_TARGET = "addEventListener" in this,
                 "mouseout" : "toElement",
                 "mouseleave" : "toElement"
             };
-            return (Event.getRelatedTarget = function(ev) {
+            return (getRelatedTarget = function(ev) {
                 ev = ev || window.event;
                 if (ev) {
                     var name = relatedTargetMap[ev.type], val = getEventElementProperty(

@@ -65,7 +65,7 @@ var eventTestCase = new YAHOO.tool.TestCase({
         }
         Action.mouseover(testNode);
         function gotTarget(e) {
-            target = DomEventPublisher.getTarget(e);
+            target = e.target;
         }
         this.wait(function() {
             Assert.areEqual(testNode, target);
@@ -80,7 +80,7 @@ var eventTestCase = new YAHOO.tool.TestCase({
         Action.mouseover(testNode, {relatedTarget : testNode.parentNode});
         
         function gotTarget(e){
-            rt = DomEventPublisher.getRelatedTarget(e);
+            rt = e.relatedTarget;
         }
         
         this.wait(function() {
@@ -94,7 +94,7 @@ var eventTestCase = new YAHOO.tool.TestCase({
         Action.mouseout(testNode, {relatedTarget : testNode.parentNode});
         
         function gotTarget(e){
-            rt = DomEventPublisher.getRelatedTarget(e);
+            rt = e.relatedTarget;
         }
         
         this.wait(function() {
